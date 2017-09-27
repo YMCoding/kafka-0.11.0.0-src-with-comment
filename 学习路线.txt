@@ -1,0 +1,116 @@
+1.生产者 KafkaProducer
+
+2.消费者 KafkaComsumer
+
+3.服务端
+    KafkaServer（startup）
+    KafkaApis
+	SocketServer
+		Acceptor
+		Processor
+		RequestChannel
+		KafkaRequestHandler
+
+    LogManager
+        Log
+            LogSegment
+                需要仔细再看
+                Records
+                AbstractRecords
+                FileRecords
+                MemoryRecords
+
+                OffsetIndex：
+                    AbstractIndex
+
+                难点：translateOffset方法 进行地址转换
+
+    LogManager
+        LogCleaner
+            LogCleanerManager
+                CleanerThread
+                    ShutdownableThread
+
+    延迟组件
+        KafkaAPis
+            ReplicaManager
+                DelayedOperationPurgatory
+                    DelayedOperation
+                        DelayedProduce
+                            SystemTimer
+                                 TimingWheel
+
+    ReplicaManager（依赖以上几个组件）
+
+        Partition分区
+            Replica副本
+            PartitionState
+
+        ReplicaFetcherManager消息同步
+            AbstractFetcherManager
+
+        MetadataCache
+
+    KafkaController：用来管理集群相关信息，broker,topic，分区，副本等。
+
+        用来和其他broker通信
+        ControllerChannelManager
+        ControllerBrokerRequestBatch
+        ControllerContext
+
+        管理分区状态
+        PartitionStateMachine
+        PartitionLeaderSelector
+        注册不同的Listener实现相关变化的管理
+        ZK
+            IZkDataListener
+            IZkChildListener
+                TopicChangeListener
+                TopicDeletionListener
+                BrokerChangeListener
+            IZkStateListener
+                SessionExpirationListener
+
+
+    GroupCoordinator
+        MemberMetadata
+        GroupMetadataManager
+        DelayedHeartbeat
+        SyncGroupRequest
+        LeaveGroupRequest
+
+    PlainLoginModule sasl/plain方式实现了身份认证
+
+    kafka监控，内部使用了Yammer Metrics进行监控，通过JMX方式对外提供监控数据
+        java自带
+            Metrics
+                Gauge:最简单度量，记录瞬值
+                Counter:可修改的数字，记录次数
+                Meter：用来衡量某段时间平均请求
+                Histogram：用来度量最大值，最小值，平均值，方差等
+                Timer:用来统计某一代码块执行时间
+
+        ReplicaManager
+            使用Meter度量，统计全部分区的isr集合发生扩张/缩小的频率
+        RequestChannel
+            使用Histogram统计各类请求和响应在RequestChannel中等待时间的分布
+
+            使用Timer统计Broke发生增减时候，leader副本选举时长及其分布
+
+        Measurable
+            Total
+            Rate
+        Stat
+        CompoundStat
+        SampledStat
+            Count
+        Sample
+        KafkaMetricsGroup
+
+        Kafka Metrics 统一负责管理Sensor对象，kafkaMetric对象以及MetricsReporter对象
+
+
+
+
+
+
