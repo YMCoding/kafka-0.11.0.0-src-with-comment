@@ -36,10 +36,11 @@ import java.util.Objects;
  * modifying in-place an existing buffer of record batches. To create a new buffer see {@link MemoryRecordsBuilder},
  * or one of the {@link #builder(ByteBuffer, byte, CompressionType, TimestampType, long)} variants.
  */
+// 多个消息集合，封装了nio ByteBuffer用来保存消息
 public class MemoryRecords extends AbstractRecords {
     private static final Logger log = LoggerFactory.getLogger(MemoryRecords.class);
     public static final MemoryRecords EMPTY = MemoryRecords.readableRecords(ByteBuffer.allocate(0));
-    //保存数据
+    // nio 保存数据
     private final ByteBuffer buffer;
 
     private final Iterable<MutableRecordBatch> batches = new Iterable<MutableRecordBatch>() {

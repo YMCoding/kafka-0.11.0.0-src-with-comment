@@ -59,22 +59,22 @@ public final class ProducerBatch {
     private enum FinalState { ABORTED, FAILED, SUCCEEDED }
 
     final long createdMs;
-    final TopicPartition topicPartition;
-    final ProduceRequestResult produceFuture;
+    final TopicPartition topicPartition; // 当前ProducerBatch中缓存的消息都会发给此TopicPartition
+    final ProduceRequestResult produceFuture; // 标识ProducerBatch状态的Future对象
 
-    private final List<Thunk> thunks = new ArrayList<>();
+    private final List<Thunk> thunks = new ArrayList<>(); // 消息得回调对象队列
     private final MemoryRecordsBuilder recordsBuilder;
     private final AtomicInteger attempts = new AtomicInteger(0);
     private final boolean isSplitBatch;
     private final AtomicReference<FinalState> finalState = new AtomicReference<>(null);
 
-    int recordCount;
-    int maxRecordSize;
-    private long lastAttemptMs;
+    int recordCount; // 记录了保存的Record最大个数
+    int maxRecordSize; // 最大Record字节数
+    private long lastAttemptMs; // 最后一次尝试发送的时间戳
     private long lastAppendTime;
     private long drainedMs;
     private String expiryErrorMessage;
-    private boolean retry;
+    private boolean retry; // 是否在重试
 
     public ProducerBatch(TopicPartition tp, MemoryRecordsBuilder recordsBuilder, long now) {
         this(tp, recordsBuilder, now, false);
@@ -99,15 +99,19 @@ public final class ProducerBatch {
      *
      * @return The RecordSend corresponding to this record or null if there isn't sufficient room.
      */
+    // 尝试将消息添加到ProducerRecord
     public FutureRecordMetadata tryAppend(long timestamp, byte[] key, byte[] value, Header[] headers, Callback callback, long now) {
         //判断MemoryRecordsBuilder中是否满了
         if (!recordsBuilder.hasRoomFor(timestamp, key, value, headers)) {
             return null;
         } else {
+            // 向MemoryRecord中添加数据
             Long checksum = this.recordsBuilder.append(timestamp, key, value, headers);
             this.maxRecordSize = Math.max(this.maxRecordSize, AbstractRecords.estimateSizeInBytesUpperBound(magic(),
                     recordsBuilder.compressionType(), key, value, headers));
             this.lastAppendTime = now;
+
+            // 创建future对象
             FutureRecordMetadata future = new FutureRecordMetadata(this.produceFuture, this.recordCount,
                                                                    timestamp, checksum,
                                                                    key == null ? -1 : key.length,
@@ -115,7 +119,11 @@ public final class ProducerBatch {
             // we have to keep every future returned to the users in case the batch needs to be
             // split to several new batches and resent.
             //Thunk存储Callback和FutureRecordMetadata
+
+            // 将自定义callbakc和future对象添加到thunks中
             thunks.add(new Thunk(callback, future));
+
+            // 更新record数量
             this.recordCount++;
             return future;
         }
@@ -165,8 +173,10 @@ public final class ProducerBatch {
      * @param logAppendTime The log append time or -1 if CreateTime is being used
      * @param exception The exception that occurred (or null if the request was successful)
      */
+    // 消息正常发送或者失败会调用，在Sender线程中调用
     public void done(long baseOffset, long logAppendTime, RuntimeException exception) {
         final FinalState finalState;
+        // 正常完成
         if (exception == null) {
             log.trace("Successfully produced messages to {} with base offset {}.", topicPartition, baseOffset);
             finalState = FinalState.SUCCEEDED;
@@ -192,10 +202,13 @@ public final class ProducerBatch {
         produceFuture.set(baseOffset, logAppendTime, exception);
 
         // execute callbacks
+        // 执行每个消息得callback
         for (Thunk thunk : thunks) {
             try {
                 if (exception == null) {
+                    // 返回信息封装成RecordMetadata
                     RecordMetadata metadata = thunk.future.value();
+                    // 调用calllback
                     if (thunk.callback != null)
                         thunk.callback.onCompletion(metadata, null);
                 } else {
@@ -206,7 +219,7 @@ public final class ProducerBatch {
                 log.error("Error executing user-provided callback on message for topic-partition '{}'", topicPartition, e);
             }
         }
-
+        // 整个ProducerBatch处理完成
         produceFuture.done();
     }
 

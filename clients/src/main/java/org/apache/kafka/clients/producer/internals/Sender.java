@@ -72,8 +72,8 @@ import static org.apache.kafka.common.record.RecordBatch.NO_TIMESTAMP;
  * The background thread that handles the sending of produce requests to the Kafka cluster. This thread makes metadata
  * requests to renew its view of the cluster and then sends produce requests to the appropriate nodes.
  */
-//描述：实现了Runnable接口，内部封装了KafkaClient
-//调用：在dosend的最后，唤醒sender
+// 根据RecordAccumulator的缓存情况，筛选出哪些node是可用的，之后，生成请求，每个Node一次只生成一个请求
+// 最终调用NetWorkClient将请求发送出去
 public class Sender implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(Sender.class);
@@ -647,6 +647,8 @@ public class Sender implements Runnable {
         // find the minimum magic version used when creating the record sets
         //找到最小的magic
         byte minUsedMagic = apiVersions.maxUsableProduceMagic();
+
+        // 整理成上述两个集合
         for (ProducerBatch batch : batches) {
             if (batch.magic() < minUsedMagic)
                 minUsedMagic = batch.magic();

@@ -21,6 +21,7 @@ import java.io.Serializable;
 /**
  * A topic name and partition number
  */
+// 标示topic的一个分区，
 public final class TopicPartition implements Serializable {
 
     private int hash = 0;

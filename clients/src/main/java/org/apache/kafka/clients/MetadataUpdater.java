@@ -28,6 +28,7 @@ import java.util.List;
  * <p>
  * This class is not thread-safe!
  */
+// 更新Metadata的接口
 interface MetadataUpdater {
 
     /**

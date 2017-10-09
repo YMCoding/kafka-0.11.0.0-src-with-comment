@@ -47,6 +47,7 @@ import java.util.Set;
  * is removed from the metadata refresh set after an update. Consumers disable topic expiry since they explicitly
  * manage topics while producers rely on topic expiry to limit the refresh set.
  */
+// 封装了cluster，保存了最后更新时间，版本号，是否等待更新等
 public final class Metadata {
 
     private static final Logger log = LoggerFactory.getLogger(Metadata.class);
@@ -55,17 +56,17 @@ public final class Metadata {
     private static final long TOPIC_EXPIRY_NEEDS_UPDATE = -1L;
 
     private final long refreshBackoffMs;
-    private final long metadataExpireMs;
-    private int version;
-    private long lastRefreshMs;
-    private long lastSuccessfulRefreshMs;
-    private Cluster cluster;
-    private boolean needUpdate;
+    private final long metadataExpireMs; // 每隔多久更新一次
+    private int version; // 表示kafka集群元数据的版本号，每更新一次，version字段增加1
+    private long lastRefreshMs; // 记录了上一次更新元数据的时间戳
+    private long lastSuccessfulRefreshMs; // 上一次成功更新时间戳
+    private Cluster cluster; // 集群元数据
+    private boolean needUpdate; // 表示是否强制更新
     /* Topics with expiry time */
-    private final Map<String, Long> topics;
-    private final List<Listener> listeners;
+    private final Map<String, Long> topics; // 记录了当前已知的所有topic
+    private final List<Listener> listeners; // 监听Metadata更新的监听器集合
     private final ClusterResourceListeners clusterResourceListeners;
-    private boolean needMetadataForAllTopics;
+    private boolean needMetadataForAllTopics; // 是否更新全部topic元数据
     private final boolean allowAutoTopicCreation;
     private final boolean topicExpiryEnabled;
 
@@ -131,8 +132,10 @@ public final class Metadata {
     /**
      * Request an update of the current cluster metadata info, return the current version before the update
      */
+    // 将needUpdate设置为true,表示强制更新Cluster
     public synchronized int requestUpdate() {
         this.needUpdate = true;
+        // 返回当前版本号
         return this.version;
     }
 
@@ -153,6 +156,7 @@ public final class Metadata {
         }
         long begin = System.currentTimeMillis();
         long remainingWaitMs = maxWaitMs;
+        // 比较版本号，判断是否更新完成
         while (this.version <= lastVersion) {
             if (remainingWaitMs != 0)
                 wait(remainingWaitMs);

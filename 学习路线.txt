@@ -1,4 +1,28 @@
-1.生产者 KafkaProducer
+1.生产者
+    KafkaProducer
+        集群元信息
+        Metadata
+            Cluster
+                Node
+                TopicPartition
+                PartitionInfo
+        ProducerInterceptors
+
+        Partitioner
+            DefaultPartitioner
+        RecordAccumulator
+            ProducerBatch
+                MemoryRecordsBuilder
+                    MemoryRecords
+                ProduceRequestResult
+            BufferPool
+
+        Sender
+            NetworkClient
+                InFlightRequest
+                MetadataUpdater
+            Selector
+                KafkaChannel
 
 2.消费者 KafkaComsumer
 

@@ -34,15 +34,15 @@ import java.util.Set;
 public final class Cluster {
 
     private final boolean isBootstrapConfigured;
-    private final List<Node> nodes;
+    private final List<Node> nodes; // 节点列表
     private final Set<String> unauthorizedTopics;
     private final Set<String> internalTopics;
     private final Node controller;
-    private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition;
-    private final Map<String, List<PartitionInfo>> partitionsByTopic;
+    private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition; // TopicParition和ParitionInfo之间的关系
+    private final Map<String, List<PartitionInfo>> partitionsByTopic;  // topic名称和PartitionInfo的映射关系
     private final Map<String, List<PartitionInfo>> availablePartitionsByTopic;
-    private final Map<Integer, List<PartitionInfo>> partitionsByNode;
-    private final Map<Integer, Node> nodesById;
+    private final Map<Integer, List<PartitionInfo>> partitionsByNode; // 记录了Node与ParititionInfo的映射关系
+    private final Map<Integer, Node> nodesById; // brokerId和node节点之间对应的关系
     private final ClusterResource clusterResource;
 
     /**

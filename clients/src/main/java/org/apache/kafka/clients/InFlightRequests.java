@@ -27,10 +27,11 @@ import java.util.Map;
 /**
  * The set of requests which have been sent or are being sent but haven't yet received a response
  */
+// 主要作用是缓存了已经发出去但还没收到响应的ClientRequest
 final class InFlightRequests {
 
     private final int maxInFlightRequestsPerConnection;
-    private final Map<String, Deque<NetworkClient.InFlightRequest>> requests = new HashMap<>();
+    private final Map<String, Deque<NetworkClient.InFlightRequest>> requests = new HashMap<>(); // nodeid 和 发送Node的ClientRequest集合
 
     public InFlightRequests(int maxInFlightRequestsPerConnection) {
         this.maxInFlightRequestsPerConnection = maxInFlightRequestsPerConnection;
@@ -89,10 +90,12 @@ final class InFlightRequests {
      * @param node Node in question
      * @return true iff we have no requests still being sent to the given node
      */
+    // 判断是否可以向指定Node发送请求的条件之一
     public boolean canSendMore(String node) {
         Deque<NetworkClient.InFlightRequest> queue = requests.get(node);
         return queue == null || queue.isEmpty() ||
-               (queue.peekFirst().send.completed() && queue.size() < this.maxInFlightRequestsPerConnection);
+               (queue.peekFirst().send.completed() &&  // 为true标示当前队头的请求已经发送完成
+                       queue.size() < this.maxInFlightRequestsPerConnection); // 判断队列中是否堆积过多请求，如果堆积了很多未响应的请求，说明这个节点负载可能较大
     }
 
     /**

@@ -16,19 +16,19 @@
  */
 package org.apache.kafka.clients.producer.internals;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
-
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.stats.Rate;
 import org.apache.kafka.common.utils.Time;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 /**
@@ -41,17 +41,20 @@ import org.apache.kafka.common.utils.Time;
  * buffers are deallocated.
  * </ol>
  */
+// 内存管理，用来管理ByteBuffer
+// 只针对指定大小的bytebuffer进行管理，对于其他bytebuffer并不会缓存进bufferPool,
+// 而是额外的分配Bytebuffer  ,  tryAppend方法中有体现，额外分配的空间丢弃由GC回收
 public class BufferPool {
 
     static final String WAIT_TIME_SENSOR_NAME = "bufferpool-wait-time";
 
-    private final long totalMemory;
-    private final int poolableSize;
-    private final ReentrantLock lock;
-    private final Deque<ByteBuffer> free;
-    private final Deque<Condition> waiters;
+    private final long totalMemory; // 整个pool的大小 buffer.memory
+    private final int poolableSize; // batch.size 指定大小的byteBuffet
+    private final ReentrantLock lock; // 多线程操作并发和回收byteBuffer，使用锁控制并发
+    private final Deque<ByteBuffer> free; // 缓存了指定大小的ByteBuffet对像
+    private final Deque<Condition> waiters; // 记录了申请不到足够空间而阻塞的线程
     /** This memory is accounted for separately from the poolable buffers in free. */
-    private long availableMemory;
+    private long availableMemory; // 可用的空间大小
     private final Metrics metrics;
     private final Time time;
     private final Sensor waitTime;
@@ -92,31 +95,36 @@ public class BufferPool {
      * @throws IllegalArgumentException if size is larger than the total memory controlled by the pool (and hence we would block
      *         forever)
      */
+    // 从缓冲区中申请ByteBuffer,空间不足，就会阻塞线程
     public ByteBuffer allocate(int size, long maxTimeToBlockMs) throws InterruptedException {
         if (size > this.totalMemory)
             throw new IllegalArgumentException("Attempt to allocate " + size
                                                + " bytes, but there is a hard limit of "
                                                + this.totalMemory
                                                + " on memory allocations.");
-
+        // 加锁
         this.lock.lock();
         try {
             // check if we have a free buffer of the right size pooled
+            // 请求的是poolableSize指定大小的byteBuffer,且free中有空闲的ByteBuffer
             if (size == poolableSize && !this.free.isEmpty())
                 return this.free.pollFirst();
 
             // now check if the request is immediately satisfiable with the
             // memory on hand or if we need to block
+            // 申请的空间大小不是poolablesize，则执行下面
             int freeListSize = freeSize() * this.poolableSize;
             if (this.availableMemory + freeListSize >= size) {
                 // we have enough unallocated or pooled memory to immediately
                 // satisfy the request
+                // 不断释放空间
                 freeUp(size);
                 ByteBuffer allocatedBuffer = allocateByteBuffer(size);
                 this.availableMemory -= size;
                 return allocatedBuffer;
             } else {
                 // we are out of memory and will have to block
+                // 没有足够的空间
                 int accumulated = 0;
                 ByteBuffer buffer = null;
                 boolean hasError = true;
@@ -126,18 +134,23 @@ public class BufferPool {
                     this.waiters.addLast(moreMemory);
                     // loop over and over until we have a buffer or have reserved
                     // enough memory to allocate one
+                    // 循环等待
                     while (accumulated < size) {
                         long startWaitNs = time.nanoseconds();
                         long timeNs;
                         boolean waitingTimeElapsed;
                         try {
+                            // 阻塞
                             waitingTimeElapsed = !moreMemory.await(remainingTimeToBlockNs, TimeUnit.NANOSECONDS);
                         } finally {
                             long endWaitNs = time.nanoseconds();
                             timeNs = Math.max(0L, endWaitNs - startWaitNs);
+
+                            // 统计阻塞时间
                             this.waitTime.record(timeNs, time.milliseconds());
                         }
 
+                        // 超时
                         if (waitingTimeElapsed) {
                             throw new TimeoutException("Failed to allocate memory within the configured max blocking time " + maxTimeToBlockMs + " ms.");
                         }
@@ -176,6 +189,7 @@ public class BufferPool {
             // signal any additional waiters if there is more memory left
             // over for them
             try {
+                // 要是还有空闲时间，就唤醒下一个线程
                 if (!(this.availableMemory == 0 && this.free.isEmpty()) && !this.waiters.isEmpty())
                     this.waiters.peekFirst().signal();
             } finally {
@@ -207,19 +221,24 @@ public class BufferPool {
      * @param size The size of the buffer to mark as deallocated, note that this may be smaller than buffer.capacity
      *             since the buffer may re-allocate itself during in-place compression
      */
+    // 释放ByteBuffer，返回到pool里
     public void deallocate(ByteBuffer buffer, int size) {
         lock.lock();
         try {
+            // 如果byteBuffer的大小是poolablesize，放入free队列中进行管理
             if (size == this.poolableSize && size == buffer.capacity()) {
                 buffer.clear();
                 this.free.add(buffer);
             } else {
+                // 释放的ByteBuffer的大小不是poolableSize，不会服用ByteBuffer，仅修改availableMemory
                 this.availableMemory += size;
             }
+            // 唤醒一个因空间不足而阻塞的线程
             Condition moreMem = this.waiters.peekFirst();
             if (moreMem != null)
                 moreMem.signal();
         } finally {
+            // 解锁
             lock.unlock();
         }
     }

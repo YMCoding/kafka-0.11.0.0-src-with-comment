@@ -34,7 +34,7 @@ public final class ProduceRequestResult {
     private final CountDownLatch latch = new CountDownLatch(1);
     private final TopicPartition topicPartition;
 
-    private volatile Long baseOffset = null;
+    private volatile Long baseOffset = null; // 此RecordBatch中第一条消息分配的offset,每个消息可以根据此offset以及自身所在的ProducerBatch中的相对偏移量
     private volatile long logAppendTime = RecordBatch.NO_TIMESTAMP;
     private volatile RuntimeException error;
 
@@ -63,6 +63,7 @@ public final class ProduceRequestResult {
     /**
      * Mark this request as complete and unblock any threads waiting on its completion.
      */
+    // 当ProducerBatch中全部的消息被正确响应、或超时、或者关闭生产者时
     public void done() {
         if (baseOffset == null)
             throw new IllegalStateException("The method `set` must be invoked before this method.");

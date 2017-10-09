@@ -16,20 +16,20 @@
  */
 package org.apache.kafka.clients.producer.internals;
 
+import org.apache.kafka.clients.producer.RecordMetadata;
+
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import org.apache.kafka.clients.producer.RecordMetadata;
 
 /**
  * The future result of a record send
  */
 public final class FutureRecordMetadata implements Future<RecordMetadata> {
 
-    private final ProduceRequestResult result;
-    private final long relativeOffset;
+    private final ProduceRequestResult result; // 指向ProducerBatch中的produceFuture字段
+    private final long relativeOffset; // 记录了对应消息在RecordBatch中的偏移量
     private final long createTimestamp;
     private final Long checksum;
     private final int serializedKeySize;
@@ -57,6 +57,7 @@ public final class FutureRecordMetadata implements Future<RecordMetadata> {
     }
 
     @Override
+    // 当生产者已经收到某种消息响应
     public RecordMetadata get() throws InterruptedException, ExecutionException {
         this.result.await();
         if (nextRecordMetadata != null)

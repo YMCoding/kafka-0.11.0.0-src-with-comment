@@ -19,6 +19,7 @@ package org.apache.kafka.common;
 /**
  * Information about a Kafka node
  */
+// 表示集群中的一个节点，记录host ip port等信息
 public class Node {
 
     private static final Node NO_NODE = new Node(-1, "", -1);

@@ -56,9 +56,12 @@ public class DefaultPartitioner implements Partitioner {
         //判断keyBytes是否为空（正常肯定不是空）
         //用kafka murmur2自定义方法和toPostive 与 partiton的数据进行模运算
         List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
+        // 分区数量
         int numPartitions = partitions.size();
         if (keyBytes == null) {
+            // 递增counter
             int nextValue = nextValue(topic);
+            // 选择availablePartitions
             List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
             if (availablePartitions.size() > 0) {
                 int part = Utils.toPositive(nextValue) % availablePartitions.size();
