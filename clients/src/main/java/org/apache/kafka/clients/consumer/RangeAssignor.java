@@ -38,6 +38,13 @@ import java.util.Map;
  * C0: [t0p0, t0p1, t1p0, t1p1]
  * C1: [t0p2, t1p2]
  */
+// 分区策略：针对每个topic,
+// n=分区数/消费者数量
+// m=分区数%消费者数量
+// 前m个消费者每个分配n+1分区
+// 后面的消费者每个分配n个分区
+
+
 public class RangeAssignor extends AbstractPartitionAssignor {
 
     @Override

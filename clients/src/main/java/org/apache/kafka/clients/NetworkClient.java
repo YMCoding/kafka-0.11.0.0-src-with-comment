@@ -57,6 +57,8 @@ import java.util.Random;
  * <p>
  * This class is not thread-safe!
  */
+// 依赖于KafkaSelector，InFlightRequests,Metadata等组件，负责管理客户端与kafka集群中各个node节点之间的连接
+// 通过KafkaSelector实现了发送请求的功能，并通过一系列handle*方法处理请求响应，超时请求以及断线重连
 public class NetworkClient implements KafkaClient {
 
     private static final Logger log = LoggerFactory.getLogger(NetworkClient.class);

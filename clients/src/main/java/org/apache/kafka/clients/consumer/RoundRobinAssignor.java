@@ -53,6 +53,7 @@ import java.util.TreeSet;
  * C1: [t1p0]
  * C2: [t1p1, t2p0, t2p1, t2p2]
  */
+// 分区策略：对每个consumer进行轮训分配
 public class RoundRobinAssignor extends AbstractPartitionAssignor {
 
     @Override

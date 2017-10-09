@@ -28,6 +28,7 @@ import java.util.Map;
  * The set of requests which have been sent or are being sent but haven't yet received a response
  */
 // 主要作用是缓存了已经发出去但还没收到响应的ClientRequest
+// 查找InFlightRequests中未确认请求最少得节点 查找负载最低节点实现原理。
 final class InFlightRequests {
 
     private final int maxInFlightRequestsPerConnection;

@@ -53,10 +53,12 @@ public abstract class AbstractPartitionAssignor implements PartitionAssignor {
     @Override
     public Map<String, Assignment> assign(Cluster metadata, Map<String, Subscription> subscriptions) {
         Set<String> allSubscribedTopics = new HashSet<>();
+        // 解析subscriptionEntry，去除userData信息
         for (Map.Entry<String, Subscription> subscriptionEntry : subscriptions.entrySet())
             allSubscribedTopics.addAll(subscriptionEntry.getValue().topics());
 
         Map<String, Integer> partitionsPerTopic = new HashMap<>();
+        // 统计每个topic分区的数量
         for (String topic : allSubscribedTopics) {
             Integer numPartitions = metadata.partitionCountForTopic(topic);
             if (numPartitions != null && numPartitions > 0)
@@ -69,6 +71,7 @@ public abstract class AbstractPartitionAssignor implements PartitionAssignor {
 
         // this class maintains no user data, so just wrap the results
         Map<String, Assignment> assignments = new HashMap<>();
+        // 整理分区分配的结果
         for (Map.Entry<String, List<TopicPartition>> assignmentEntry : rawAssignments.entrySet())
             assignments.put(assignmentEntry.getKey(), new Assignment(assignmentEntry.getValue()));
         return assignments;

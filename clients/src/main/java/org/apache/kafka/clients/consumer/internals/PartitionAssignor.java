@@ -56,6 +56,7 @@ public interface PartitionAssignor {
      * @return A map from the members to their respective assignment. This should have one entry
      *         for all members who in the input subscription map.
      */
+    // 完成分区的分配子类实现
     Map<String, Assignment> assign(Cluster metadata, Map<String, Subscription> subscriptions);
 
 
@@ -63,6 +64,7 @@ public interface PartitionAssignor {
      * Callback which is invoked when a group member receives its assignment from the leader.
      * @param assignment The local member's assignment as provided by the leader in {@link #assign(Cluster, Map)}
      */
+    // 是每个消费者收到leader分配结果时的回调函数
     void onAssignment(Assignment assignment);
 
 
@@ -100,9 +102,11 @@ public interface PartitionAssignor {
                     ')';
         }
     }
-
+    // 保存了分区的分配结果
     class Assignment {
+        // 分配给某消费者的TopicPartition
         private final List<TopicPartition> partitions;
+        // 用户自定义数据
         private final ByteBuffer userData;
 
         public Assignment(List<TopicPartition> partitions, ByteBuffer userData) {

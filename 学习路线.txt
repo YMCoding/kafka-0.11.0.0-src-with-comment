@@ -24,7 +24,21 @@
             Selector
                 KafkaChannel
 
-2.消费者 KafkaComsumer
+2.消费者
+    KafkaConsumer
+        ConsumerNetworkClient
+        SubscriptionState
+            SubscriptionType
+            TopicPartitionState
+        ConsumerCoordinator
+            AbstractCoordinator
+                Heartbeat
+        PartitionAssignor
+            AbstractPartitionAssignor
+            RangeAssignor
+            RoundRobinAssignor
+        Fetcher
+
 
 3.服务端
     KafkaServer（startup）

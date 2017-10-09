@@ -539,10 +539,13 @@ import java.util.regex.Pattern;
  * the consumer threads can hash into these queues using the TopicPartition to ensure in-order consumption and simplify
  * commit.
  */
+// 使用_consumer_offsets内部topic用来板寸消费者提交的offset，当触发rebalance操作，消费者可以读取offset topic中的offset继续消费
+
 public class KafkaConsumer<K, V> implements Consumer<K, V> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConsumer.class);
     private static final long NO_CURRENT_THREAD = -1L;
+    // cilentId生成器
     private static final AtomicInteger CONSUMER_CLIENT_ID_SEQUENCE = new AtomicInteger(1);
     private static final String JMX_PREFIX = "kafka.consumer";
     static final long DEFAULT_CLOSE_TIMEOUT_MS = 30 * 1000;
@@ -551,15 +554,21 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
     final Metrics metrics;
 
     private final String clientId;
+    // 控制这consumer与服务端GroupCoordinator之间的通信逻辑
     private final ConsumerCoordinator coordinator;
     private final Deserializer<K> keyDeserializer;
     private final Deserializer<V> valueDeserializer;
+    // 负责从服务端获取消息
     private final Fetcher<K, V> fetcher;
+    // 拦截器集合
     private final ConsumerInterceptors<K, V> interceptors;
 
     private final Time time;
+    // 负责与kafka服务端的网络通信
     private final ConsumerNetworkClient client;
+    // 用来追踪TopicPartition与offset对应关系
     private final SubscriptionState subscriptions;
+    // 记录了整个kafka集群的元信息
     private final Metadata metadata;
     private final long retryBackoffMs;
     private final long requestTimeoutMs;
@@ -567,6 +576,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
 
     // currentThread holds the threadId of the current thread accessing KafkaConsumer
     // and is used to prevent multi-threaded access
+    // 仅是检测是否有多线程并发操作kafkaConsumer
     private final AtomicLong currentThread = new AtomicLong(NO_CURRENT_THREAD);
     // refcount is used to allow reentrant access by the thread who has acquired currentThread
     private final AtomicInteger refcount = new AtomicInteger(0);
@@ -877,6 +887,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @throws IllegalArgumentException If topics is null or contains null or empty elements
      */
     @Override
+    // 订阅指定的topic,并未消费者自动分配分区
     public void subscribe(Collection<String> topics, ConsumerRebalanceListener listener) {
         acquire();
         try {
@@ -990,6 +1001,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @throws IllegalArgumentException If partitions is null or contains null or empty topics
      */
     @Override
+    // 用户手动订阅指定的topic并指定消费的分区，和subscribe方法互斥
     public void assign(Collection<TopicPartition> partitions) {
         acquire();
         try {
@@ -1048,7 +1060,9 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      *             partitions to consume from
      */
     @Override
+    // 负责从服务端获取消息
     public ConsumerRecords<K, V> poll(long timeout) {
+        // 并发检测
         acquire();
         try {
             if (timeout < 0)
@@ -1063,6 +1077,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             do {
                 //关键方法
                 Map<TopicPartition, List<ConsumerRecord<K, V>>> records = pollOnce(remaining);
+                // 检测是否有消息返回
                 if (!records.isEmpty()) {
                     // before returning the fetched records, we can send off the next round of fetches
                     // and avoid block waiting for their responses to enable pipelining while the user
@@ -1070,6 +1085,9 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
                     //
                     // NOTE: since the consumed position has already been updated, we must not allow
                     // wakeups or any other errors to be triggered prior to returning the fetched records.
+                    // 创建并缓存FetchRequest
+                    // 创建并缓存FetchRequest
+                    // 创建并缓存FetchRequest
                     if (fetcher.sendFetches() > 0 || client.hasPendingRequests())
                         client.pollNoWakeup();
 
@@ -1101,21 +1119,22 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         //进行rebalance操作，调用maybeAutoCommitOffsetsAsync
         coordinator.poll(time.milliseconds(), timeout);
 
-        //判断是否记录了订阅topic的偏移量，
+        // 恢复Subscriptionstate中对应的TopicParitionState状态
         if (!subscriptions.hasAllFetchPositions())
             updateFetchPositions(this.subscriptions.missingFetchPositions());
 
-        //数据存在立即返回
+        // 数据存在立即返回
         Map<TopicPartition, List<ConsumerRecord<K, V>>> records = fetcher.fetchedRecords();
         if (!records.isEmpty())
             return records;
 
         // send any new fetches (won't resend pending fetches)
+        // 创建并缓存FetchRequest请求
         fetcher.sendFetches();
 
         long now = time.milliseconds();
         long pollTimeout = Math.min(coordinator.timeToNextPoll(now), timeout);
-
+        // 发送FetchRequest
         client.poll(pollTimeout, now, new PollCondition() {
             @Override
             public boolean shouldBlock() {
@@ -1129,7 +1148,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         // prior to returning data so that the group can stabilize faster
         if (coordinator.needRejoin())
             return Collections.emptyMap();
-
+        // 从completedFetches缓存中解析消息
         return fetcher.fetchedRecords();
     }
 
@@ -1262,6 +1281,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * you may lose data if this API is arbitrarily used in the middle of consumption, to reset the fetch offsets
      */
     @Override
+    // 指定消费者起始消费的位置
     public void seek(TopicPartition partition, long offset) {
         if (offset < 0) {
             throw new IllegalArgumentException("seek offset must not be a negative number");
@@ -1463,6 +1483,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @param partitions The partitions which should be resumed
      */
     @Override
+    // 恢复consumer
     public void resume(Collection<TopicPartition> partitions) {
         acquire();
         try {
@@ -1481,6 +1502,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @return The set of paused partitions
      */
     @Override
+    // 暂停consumer
     public Set<TopicPartition> paused() {
         acquire();
         try {
@@ -1688,17 +1710,20 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @throws IllegalStateException if the consumer has been closed
      * @throws ConcurrentModificationException if another thread already has the lock
      */
+    // 并发检测机制
     private void acquire() {
         ensureNotClosed();
         long threadId = Thread.currentThread().getId();
         if (threadId != currentThread.get() && !currentThread.compareAndSet(NO_CURRENT_THREAD, threadId))
             throw new ConcurrentModificationException("KafkaConsumer is not safe for multi-threaded access");
+        // 记录载入次数
         refcount.incrementAndGet();
     }
 
     /**
      * Release the light lock protecting the consumer from multi-threaded access.
      */
+    // 释放
     private void release() {
         if (refcount.decrementAndGet() == 0)
             currentThread.set(NO_CURRENT_THREAD);

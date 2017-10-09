@@ -65,19 +65,27 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * This class manages the coordination process with the consumer coordinator.
  */
-//初始化KafkaConsumer时候被初始化
+// 初始化KafkaConsumer时候被初始化
+// 与服务端的GroupCoordinator交互
+// 完成rebalance操作
+// 请求最近提交的offset
+// 请求最近提交的offset
 public final class ConsumerCoordinator extends AbstractCoordinator {
 
     private static final Logger log = LoggerFactory.getLogger(ConsumerCoordinator.class);
-    //分区策略
+    // PartitionAssignor列表,leader消费者收到JoinGroupResponse后，会按照其中指定的分区策略进行分区分配
     private final List<PartitionAssignor> assignors;
+    // 集群元数据
     private final Metadata metadata;
     private final ConsumerCoordinatorMetrics sensors;
+    // SubscriptionState对象
     private final SubscriptionState subscriptions;
     private final OffsetCommitCallback defaultOffsetCommitCallback;
+    // 是否开启了自动提交
     private final boolean autoCommitEnabled;
     private final int autoCommitIntervalMs;
     private final ConsumerInterceptors<?, ?> interceptors;
+    // 标示是否排除内部的topic
     private final boolean excludeInternalTopics;
     private final AtomicInteger pendingAsyncCommits;
 
@@ -87,8 +95,9 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
     private boolean isLeader = false;
     private Set<String> joinedSubscription;
-    //用来存储Metadata快照信息，用来检测Topic是否发生了分区变化。初始化添加监听
+    // 用来存储Metadata快照信息，用来检测Topic是否发生了分区变化。初始化添加监听
     private MetadataSnapshot metadataSnapshot;
+    // 用来存储Metadata快照信息，不过是用来检测partition分配过程中有没有发生分区数量变化
     private MetadataSnapshot assignmentSnapshot;
     private long nextAutoCommitDeadline;
 
@@ -162,7 +171,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
     public void updatePatternSubscription(Cluster cluster) {
         final Set<String> topicsToSubscribe = new HashSet<>();
-
+        // 遍历 通过subscribedPattern匹配topic
         for (String topic : cluster.topics())
             if (subscriptions.subscribedPattern().matcher(topic).matches() &&
                     !(excludeInternalTopics && cluster.internalTopics().contains(topic)))
@@ -172,6 +181,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
         // note we still need to update the topics contained in the metadata. Although we have
         // specified that all topics should be fetched, only those set explicitly will be retained
+        // 更新Metadata需要记录的元数据的topic集合
         metadata.setTopics(subscriptions.groupSubscription());
     }
 
@@ -182,13 +192,16 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 // if we encounter any unauthorized topics, raise an exception to the user
                 if (!cluster.unauthorizedTopics().isEmpty())
                     throw new TopicAuthorizationException(new HashSet<>(cluster.unauthorizedTopics()));
-
+                // AUTO_PATTERN模式处理
                 if (subscriptions.hasPatternSubscription())
                     updatePatternSubscription(cluster);
 
                 // check if there are any changes to the metadata which should trigger a rebalance
+                // AUTO_TOPICS或者AUTO_PATTERN模式的处理
                 if (subscriptions.partitionsAutoAssigned()) {
+                    // 创建快照
                     MetadataSnapshot snapshot = new MetadataSnapshot(subscriptions, cluster);
+                    // 比较并记录快照，用来检测topic是否发生了分区数量的变化
                     if (!snapshot.equals(metadataSnapshot))
                         metadataSnapshot = snapshot;
                 }
@@ -213,19 +226,22 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                                   String assignmentStrategy,
                                   ByteBuffer assignmentBuffer) {
         // only the leader is responsible for monitoring for metadata changes (i.e. partition changes)
+        // leader需要比较快照
         if (!isLeader)
             assignmentSnapshot = null;
-
+        // 查找使用的分配策略
         PartitionAssignor assignor = lookupAssignor(assignmentStrategy);
         if (assignor == null)
             throw new IllegalStateException("Coordinator selected invalid assignment protocol: " + assignmentStrategy);
-
+        // 反序列化，更新Assignment
         Assignment assignment = ConsumerProtocol.deserializeAssignment(assignmentBuffer);
 
         // set the flag to refresh last committed offsets
+        // 允许从服务端获取最近一次提交的offset
         subscriptions.needRefreshCommits();
 
         // update partition assignment
+        // 填充assignment
         subscriptions.assignFromSubscribed(assignment.partitions());
 
         // check if the assignment contains some topics that were not in the original
@@ -265,6 +281,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
         log.info("Setting newly assigned partitions {} for group {}", subscriptions.assignedPartitions(), groupId);
         try {
             Set<TopicPartition> assigned = new HashSet<>(subscriptions.assignedPartitions());
+            // 执行callback
             listener.onPartitionsAssigned(assigned);
         } catch (WakeupException | InterruptException e) {
             throw e;
@@ -283,7 +300,6 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
      */
     public void poll(long now, long remainingMs) {
         invokeCompletedOffsetCommitCallbacks();
-
         if (subscriptions.partitionsAutoAssigned()) {
             if (coordinatorUnknown()) {
                 ensureCoordinatorReady();
@@ -340,6 +356,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     protected Map<String, ByteBuffer> performAssignment(String leaderId,
                                                         String assignmentStrategy,
                                                         Map<String, ByteBuffer> allSubscriptions) {
+        // 查找分区用的PartitionAssignor
         PartitionAssignor assignor = lookupAssignor(assignmentStrategy);
         if (assignor == null)
             throw new IllegalStateException("Coordinator selected invalid assignment protocol: " + assignmentStrategy);
@@ -354,11 +371,13 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
         // the leader will begin watching for changes to any of the topics the group is interested in,
         // which ensures that all metadata changes will eventually be seen
+        // 对于leader来说，要关注consumer group中全部消费者订阅的topic
         this.subscriptions.groupSubscribe(allSubscribedTopics);
         metadata.setTopics(this.subscriptions.groupSubscription());
 
         // update metadata (if needed) and keep track of the metadata used for assignment so that
         // we can check after rebalance completion whether anything has changed
+        // 更新metadata
         client.ensureFreshMetadata();
 
         isLeader = true;
@@ -366,7 +385,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
         log.debug("Performing assignment for group {} using strategy {} with subscriptions {}",
                 groupId, assignor.name(), subscriptions);
 
-        //进行rebalance具体操作的类
+        // 进行分区分配
         Map<String, Assignment> assignment = assignor.assign(metadata.fetch(), subscriptions);
 
         // user-customized assignor may have created some topics that are not in the subscription list
@@ -415,11 +434,16 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     }
 
     @Override
+    // 1.开启自动提交则进行同步提交
+    // 2.调用注册在SubscriptionState中的ConsumerRebalanceListener上的回调方法
+    // 3.将Subscriptionstate
     protected void onJoinPrepare(int generation, String memberId) {
         // commit offsets prior to rebalance if auto-commit enabled
+        // 进行一次同步提交offset操作
         maybeAutoCommitOffsetsSync(rebalanceTimeoutMs);
 
         // execute the user's callback before rebalance
+        // 调用ConsumerRebalanceListener
         ConsumerRebalanceListener listener = subscriptions.listener();
         log.info("Revoking previously assigned partitions {} for group {}", subscriptions.assignedPartitions(), groupId);
         try {
@@ -455,10 +479,12 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     /**
      * Refresh the committed offsets for provided partitions.
      */
+    // 发送offsetFetchRequest请求从服务端拉取最近提交的offset集合，更新到Subcriptions中
     public void refreshCommittedOffsetsIfNeeded() {
         if (subscriptions.refreshCommitsNeeded()) {
             //ConsumerNetworkClient send方法
             Map<TopicPartition, OffsetAndMetadata> offsets = fetchCommittedOffsets(subscriptions.assignedPartitions());
+            // 处理offset请求
             for (Map.Entry<TopicPartition, OffsetAndMetadata> entry : offsets.entrySet()) {
                 TopicPartition tp = entry.getKey();
                 // verify assignment is still active
@@ -477,10 +503,13 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
      */
     public Map<TopicPartition, OffsetAndMetadata> fetchCommittedOffsets(Set<TopicPartition> partitions) {
         while (true) {
+            // 检测GroupCoordinator的状态
             ensureCoordinatorReady();
 
             // contact coordinator to fetch committed offsets
+            // 创建并缓存OffsetFetchRequest请求
             RequestFuture<Map<TopicPartition, OffsetAndMetadata>> future = sendOffsetFetchRequest(partitions);
+            // 阻塞发送request
             client.poll(future);
 
             if (future.succeeded())
@@ -488,7 +517,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
             if (!future.isRetriable())
                 throw future.exception();
-
+            // 退避一段时间
             time.sleep(retryBackoffMs);
         }
     }
@@ -523,7 +552,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
     public void commitOffsetsAsync(final Map<TopicPartition, OffsetAndMetadata> offsets, final OffsetCommitCallback callback) {
         invokeCompletedOffsetCommitCallbacks();
-
+        // 没有找到可用的Node
         if (!coordinatorUnknown()) {
             //rebalance
             doCommitOffsetsAsync(offsets, callback);
@@ -832,6 +861,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
      * @param partitions The set of partitions to get offsets for.
      * @return A request future containing the committed offsets.
      */
+    // 创建并缓存OffsetFethcRequest
     private RequestFuture<Map<TopicPartition, OffsetAndMetadata>> sendOffsetFetchRequest(Set<TopicPartition> partitions) {
         Node coordinator = coordinator();
         if (coordinator == null)
@@ -843,6 +873,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 new OffsetFetchRequest.Builder(this.groupId, new ArrayList<>(partitions));
 
         // send the request with a callback
+        // 使用OffsetFetchResponseHandler来处理响应
         return client.send(coordinator, requestBuilder)
                 .compose(new OffsetFetchResponseHandler());
     }
@@ -850,6 +881,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     private class OffsetFetchResponseHandler extends CoordinatorResponseHandler<OffsetFetchResponse, Map<TopicPartition, OffsetAndMetadata>> {
         @Override
         public void handle(OffsetFetchResponse response, RequestFuture<Map<TopicPartition, OffsetAndMetadata>> future) {
+            // 处理异常
             if (response.hasError()) {
                 Errors error = response.error();
                 log.debug("Offset fetch for group {} failed: {}", groupId, error.message());
@@ -868,7 +900,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 }
                 return;
             }
-
+            // 获取offset响应数据
             Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>(response.responseData().size());
             for (Map.Entry<TopicPartition, OffsetFetchResponse.PartitionData> entry : response.responseData().entrySet()) {
                 TopicPartition tp = entry.getKey();
@@ -886,12 +918,13 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                     return;
                 } else if (data.offset >= 0) {
                     // record the position with the offset (-1 indicates no committed offset to fetch)
+                    // 记录正常的offset
                     offsets.put(tp, new OffsetAndMetadata(data.offset, data.metadata));
                 } else {
                     log.debug("Group {} has no committed offset for partition {}", groupId, tp);
                 }
             }
-
+            // 传播offsets集合，最终通过fetchCommittedOffsets方法返回
             future.complete(offsets);
         }
     }

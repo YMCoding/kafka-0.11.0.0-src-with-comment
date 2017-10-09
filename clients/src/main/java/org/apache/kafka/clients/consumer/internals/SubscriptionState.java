@@ -53,36 +53,52 @@ import java.util.regex.Pattern;
  * partitions. This is updated through {@link #committed(TopicPartition, OffsetAndMetadata)} and can be used
  * to set the initial fetch position (e.g. {@link Fetcher#resetOffset(TopicPartition)}.
  */
+// 用来追踪TopicPartition与offset对应关系
 public class SubscriptionState {
     private static final String SUBSCRIPTION_EXCEPTION_MESSAGE =
             "Subscription to topics, partitions and pattern are mutually exclusive";
-
+    // 标示订阅topic的模式
     private enum SubscriptionType {
-        NONE, AUTO_TOPICS, AUTO_PATTERN, USER_ASSIGNED
+        NONE,
+        // 按照指定的topic名字进行订阅，自动分配分区
+        AUTO_TOPICS,
+        // 使用正则表达式进行订阅，自动分配分区
+        AUTO_PATTERN,
+        // 用户手动指定消费者的topic以及分区编号
+        USER_ASSIGNED
     }
 
     /* the type of subscription */
+    // 订阅的模式
     private SubscriptionType subscriptionType;
 
     /* the pattern user has requested */
+    // 使用AUTO_PATTERN模式时候，用户记录正则表达式对所有的topic进行匹配
     private Pattern subscribedPattern;
 
     /* the list of topics the user has requested */
+    // AUTO_TOPICS或AUTO_PATTERN模式，使用此集合记录所有订阅的topic
     private Set<String> subscription;
 
     /* the list of topics the group has subscribed to (set only for the leader on join group completion) */
+    // leader使用该集合记录Consumer group中所有消费者订阅的topic
+    // 其他Follower的改集合中只保存了其自身订阅的topic
     private final Set<String> groupSubscription;
 
     /* the partitions that are currently assigned, note that the order of partition matters (see FetchBuilder for more details) */
+    // 无论使用什么订阅模式，都会使用此集合记录每个TopicPartition消费状态
     private final PartitionStates<TopicPartitionState> assignment;
 
     /* do we need to request the latest committed offsets from the coordinator? */
+    // 标记是否需要从GroupCoordinator获取最近提交的offset
     private boolean needsFetchCommittedOffsets;
 
     /* Default offset reset strategy */
+    // 默认的offsetResetStrategy测落
     private final OffsetResetStrategy defaultResetStrategy;
 
     /* User-provided listener to be invoked when assignment changes */
+    // 用于监听分区分配操作
     private ConsumerRebalanceListener listener;
 
     /* Listeners provide a hook for internal state cleanup (e.g. metrics) on assignment changes */
@@ -111,6 +127,7 @@ public class SubscriptionState {
             throw new IllegalStateException(SUBSCRIPTION_EXCEPTION_MESSAGE);
     }
 
+    // 使用的AUTO_TOPICS
     public void subscribe(Set<String> topics, ConsumerRebalanceListener listener) {
         if (listener == null)
             throw new IllegalArgumentException("RebalanceListener cannot be null");
@@ -122,6 +139,7 @@ public class SubscriptionState {
         changeSubscription(topics);
     }
 
+    // 使用的是AUTO_PATTERN
     public void subscribeFromPattern(Set<String> topics) {
         if (subscriptionType != SubscriptionType.AUTO_PATTERN)
             throw new IllegalArgumentException("Attempt to subscribe from pattern while subscription type set to " +
@@ -129,7 +147,7 @@ public class SubscriptionState {
 
         changeSubscription(topics);
     }
-
+    // 向subscription中添加集合
     private void changeSubscription(Set<String> topicsToSubscribe) {
         if (!this.subscription.equals(topicsToSubscribe)) {
             this.subscription = topicsToSubscribe;
@@ -433,11 +451,15 @@ public class SubscriptionState {
     }
 
     private static class TopicPartitionState {
+        // 下次要从服务端获取的消息得offset
         private Long position; // last consumed position
         private Long highWatermark; // the high watermark from last fetch
         private Long lastStableOffset;
+        // 记录了最近一次提交的offset
         private OffsetAndMetadata committed;  // last committed position
+        // 记录了当前topicPartition是否处于暂停状态
         private boolean paused;  // whether this partition has been paused by the user
+        // 重置position的策略
         private OffsetResetStrategy resetStrategy;  // the strategy to use if the offset needs resetting
 
         public TopicPartitionState() {
