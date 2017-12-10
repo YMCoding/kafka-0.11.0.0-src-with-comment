@@ -670,6 +670,7 @@ public class NetworkClient implements KafkaClient {
         // if no response is expected then when the send is completed, return it
         for (Send send : this.selector.completedSends()) {
             InFlightRequest request = this.inFlightRequests.lastSent(send.destination());
+            // 不需要响应，发送请求就结束了
             if (!request.expectResponse) {
                 this.inFlightRequests.completeLastSent(send.destination());
                 // 生成ClientResponse对象，添加到response集合
@@ -688,7 +689,7 @@ public class NetworkClient implements KafkaClient {
     private void handleCompletedReceives(List<ClientResponse> responses, long now) {
         for (NetworkReceive receive : this.selector.completedReceives()) {
             String source = receive.source();
-            // 取出对应的ClientRequest
+            // 接受到完整的响应，可以删除inFlightRequests中的ClientRequest
             InFlightRequest req = inFlightRequests.completeNext(source);
             // 解析响应
             Struct responseStruct = parseStructMaybeUpdateThrottleTimeMetrics(receive.payload(), req.header,

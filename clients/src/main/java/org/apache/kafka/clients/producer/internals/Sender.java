@@ -233,7 +233,7 @@ public class Sender implements Runnable {
             }
         }
         //sendProducerData，最终调用client.send(clientRequest, now),从accumulator中拿到消息
-        //调用selector，把send放到KafkaChannel
+        // 将请求放入队列中等待发送，请求只能发送给准备好的节点
         long pollTimeout = sendProducerData(now);
         //最终调用kafkachannel write方法进行消息发送
         client.poll(pollTimeout, now);
@@ -265,7 +265,7 @@ public class Sender implements Runnable {
             }
         }
 
-        //返回该nodeid对应的所有可以发送的 RecordBatch 组成的 batches
+        // 返回每个主副本对应的批记录列表，每个批记录对应一个分区
         Map<Integer, List<ProducerBatch>> batches = this.accumulator.drain(cluster, result.readyNodes,
                 this.maxRequestSize, now);
         if (guaranteeMessageOrder) {
