@@ -53,11 +53,11 @@ public class DefaultPartitioner implements Partitioner {
      */
     public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
         //通过Cluster拿到topic相关Partitions信息
-        //判断keyBytes是否为空（正常肯定不是空）
         //用kafka murmur2自定义方法和toPostive 与 partiton的数据进行模运算
         List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
         // 分区数量
         int numPartitions = partitions.size();
+        // 消息没有key,计数器自增轮训将消息发送到不同的parition里面
         if (keyBytes == null) {
             // 递增counter
             int nextValue = nextValue(topic);
@@ -72,6 +72,7 @@ public class DefaultPartitioner implements Partitioner {
             }
         } else {
             // hash the keyBytes to choose a partition
+            // 消息有key
             return Utils.toPositive(Utils.murmur2(keyBytes)) % numPartitions;
         }
     }
