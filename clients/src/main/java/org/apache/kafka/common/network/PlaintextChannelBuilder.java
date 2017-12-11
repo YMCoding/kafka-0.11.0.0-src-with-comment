@@ -16,14 +16,13 @@
  */
 package org.apache.kafka.common.network;
 
-import java.nio.channels.SelectionKey;
-import java.util.Map;
-
-import org.apache.kafka.common.security.auth.PrincipalBuilder;
 import org.apache.kafka.common.KafkaException;
-
+import org.apache.kafka.common.security.auth.PrincipalBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.channels.SelectionKey;
+import java.util.Map;
 
 public class PlaintextChannelBuilder implements ChannelBuilder {
     private static final Logger log = LoggerFactory.getLogger(PlaintextChannelBuilder.class);
@@ -38,7 +37,7 @@ public class PlaintextChannelBuilder implements ChannelBuilder {
             throw new KafkaException(e);
         }
     }
-
+    // 选择器在连接服务端时构建kafka通道
     public KafkaChannel buildChannel(String id, SelectionKey key, int maxReceiveSize) throws KafkaException {
         try {
             PlaintextTransportLayer transportLayer = new PlaintextTransportLayer(key);

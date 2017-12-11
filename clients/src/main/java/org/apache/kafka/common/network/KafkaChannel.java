@@ -27,7 +27,7 @@ import java.security.Principal;
 
 public class KafkaChannel {
     private final String id;
-    private final TransportLayer transportLayer;
+    private final TransportLayer transportLayer;// 传输层，用来操作SocketChannel
     private final Authenticator authenticator;
     // Tracks accumulated network thread time. This is updated on the network thread.
     // The values are read and reset after each response is sent.
@@ -200,6 +200,7 @@ public class KafkaChannel {
     }
 
     private long receive(NetworkReceive receive) throws IOException {
+        // 底层调用SocketChannel的read方法
         return receive.readFrom(transportLayer);
     }
 
@@ -208,6 +209,7 @@ public class KafkaChannel {
         //调用GatheringByteChannel 实现类的write方法
         //PlaintextTransportLayer 利用nio 的SocketChannel write方法
         //SslTransportLayer 利用SSLEngine发送
+        // 底层调用SocketChannel的的write方法
         send.writeTo(transportLayer);
         if (send.completed())
             transportLayer.removeInterestOps(SelectionKey.OP_WRITE);
