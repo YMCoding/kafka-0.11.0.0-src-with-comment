@@ -59,6 +59,7 @@ import java.util.Random;
  */
 // 依赖于KafkaSelector，InFlightRequests,Metadata等组件，负责管理客户端与kafka集群中各个node节点之间的连接
 // 通过KafkaSelector实现了发送请求的功能，并通过一系列handle*方法处理请求响应，超时请求以及断线重连
+// NetworkClient 会调用Selector.send 继而调用KafkaChannel.setSend ，将请求交给传输层TransportLayer,操作SocketChannel,最终将请求发送给服务端
 public class NetworkClient implements KafkaClient {
 
     private static final Logger log = LoggerFactory.getLogger(NetworkClient.class);

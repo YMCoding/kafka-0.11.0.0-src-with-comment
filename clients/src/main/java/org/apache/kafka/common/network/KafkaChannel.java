@@ -149,6 +149,7 @@ public class KafkaChannel {
     }
 
     public void setSend(Send send) {
+        // 之前的send请求没有发送完毕，新的请求不能进来
         if (this.send != null)
             throw new IllegalStateException("Attempt to begin a send operation with prior send operation still in progress.");
         this.send = send;
@@ -171,10 +172,15 @@ public class KafkaChannel {
         }
         return result;
     }
-
+    // 1.发送请求时候，setSend方法设置发送的对象，注册写事件
+    // 2.客户端轮训到写事件，取出channel中的send发送给NetworkClinet
+    // 3.本次没完成，还会轮训到本次事件
+    // 4.新的轮训会继续发送请求
+    // 5.请求完成，加入到completedSends集合中
+    // 6.请求完成，重置send为null，下一个请求才会进来
     public Send write() throws IOException {
         Send result = null;
-        //调用send发送
+        //调用send发送 如果send方法返回false，则表示请求还没发送成功
         if (send != null && send(send)) {
             result = send;
             send = null;
@@ -203,7 +209,7 @@ public class KafkaChannel {
         // 底层调用SocketChannel的read方法
         return receive.readFrom(transportLayer);
     }
-
+    // 将保存到KafkaChnnel的send发送到传输层的SocketChannel中
     private boolean send(Send send) throws IOException {
         //此处的send为 NetworkSend extends ByteBufferSend
         //调用GatheringByteChannel 实现类的write方法
