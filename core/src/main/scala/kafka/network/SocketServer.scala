@@ -50,7 +50,7 @@ import scala.util.control.{ControlThrowable, NonFatal}
  *   M Handler threads that handle requests and produce responses back to the processor threads for writing.
  */
 //整体生产流程：
-//KafkaProducer创建ProducerRecord，将详细缓存懂啊RecordAccumulator
+//KafkaProducer创建ProducerRecord，将详细缓存RecordAccumulator
 //Sender线程从RecordAccumulator中读取消息，放入KafkafChannel.send字段中等待发送，同时放入InFlightRequest队列中等待响应
 //通过KSelector发送消息
 //Processor使用KSelector读取请求暂存到stageRecieves中

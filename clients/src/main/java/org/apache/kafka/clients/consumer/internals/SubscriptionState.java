@@ -281,6 +281,7 @@ public class SubscriptionState {
         return this.groupSubscription;
     }
 
+    // 获取指定分区的状态对象
     private TopicPartitionState assignedState(TopicPartition tp) {
         TopicPartitionState state = this.assignment.stateValue(tp);
         if (state == null)
@@ -288,10 +289,12 @@ public class SubscriptionState {
         return state;
     }
 
+    // 更新分区的偏移量
     public void committed(TopicPartition tp, OffsetAndMetadata offset) {
         assignedState(tp).committed(offset);
     }
 
+    // 更新分区最新提交的消费偏移量
     public OffsetAndMetadata committed(TopicPartition tp) {
         return assignedState(tp).committed;
     }
@@ -308,6 +311,7 @@ public class SubscriptionState {
         this.needsFetchCommittedOffsets = false;
     }
 
+    // 定位到分区的指定位置，更新拉取的偏移量
     public void seek(TopicPartition tp, long offset) {
         assignedState(tp).seek(offset);
     }
@@ -316,6 +320,7 @@ public class SubscriptionState {
         return this.assignment.partitionSet();
     }
 
+    // 获取存在拉取偏移量
     public List<TopicPartition> fetchablePartitions() {
         List<TopicPartition> fetchable = new ArrayList<>(assignment.size());
         for (PartitionStates.PartitionState<TopicPartitionState> state : assignment.partitionStates()) {
@@ -329,10 +334,12 @@ public class SubscriptionState {
         return this.subscriptionType == SubscriptionType.AUTO_TOPICS || this.subscriptionType == SubscriptionType.AUTO_PATTERN;
     }
 
+    // 设置分区的偏移量
     public void position(TopicPartition tp, long offset) {
         assignedState(tp).position(offset);
     }
 
+    // 获取分区的偏移量，拉取消息时，使用最新的拉取位置
     public Long position(TopicPartition tp) {
         return assignedState(tp).position;
     }
@@ -389,10 +396,12 @@ public class SubscriptionState {
         return true;
     }
 
+    // 判断所有的分区都存在有效的拉取偏移量
     public boolean hasAllFetchPositions() {
         return hasAllFetchPositions(this.assignedPartitions());
     }
 
+    // 找出没有拉取偏移量的分区
     public Set<TopicPartition> missingFetchPositions() {
         Set<TopicPartition> missing = new HashSet<>();
         for (PartitionStates.PartitionState<TopicPartitionState> state : assignment.partitionStates()) {
@@ -418,10 +427,12 @@ public class SubscriptionState {
         return isAssigned(tp) && assignedState(tp).hasValidPosition();
     }
 
+    // 暂停分区
     public void pause(TopicPartition tp) {
         assignedState(tp).pause();
     }
 
+    // 恢复拉取分区
     public void resume(TopicPartition tp) {
         assignedState(tp).resume();
     }
@@ -470,7 +481,7 @@ public class SubscriptionState {
             this.committed = null;
             this.resetStrategy = null;
         }
-
+        // 重置拉取偏移量，第一次分配给消费者时调用
         private void awaitReset(OffsetResetStrategy strategy) {
             this.resetStrategy = strategy;
             this.position = null;
@@ -483,18 +494,21 @@ public class SubscriptionState {
         public boolean hasValidPosition() {
             return position != null;
         }
-
+        // 第一次读取 zk更新偏移量
         private void seek(long offset) {
             this.position = offset;
             this.resetStrategy = null;
         }
 
+        // 每次拉取消息后，更新拉取偏移量
         private void position(long offset) {
+            // 当前partition必须有效
             if (!hasValidPosition())
                 throw new IllegalStateException("Cannot set a new position without a valid current position");
             this.position = offset;
         }
 
+        // 更新偏移量。定时提交任务调用
         private void committed(OffsetAndMetadata offset) {
             this.committed = offset;
         }

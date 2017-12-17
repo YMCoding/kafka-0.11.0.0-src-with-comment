@@ -1119,7 +1119,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         //进行rebalance操作，调用maybeAutoCommitOffsetsAsync
         coordinator.poll(time.milliseconds(), timeout);
 
-        // 恢复Subscriptionstate中对应的TopicParitionState状态
+        // 判断所有的分区都存在有效的拉取偏移量
         if (!subscriptions.hasAllFetchPositions())
             updateFetchPositions(this.subscriptions.missingFetchPositions());
 
@@ -1129,7 +1129,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             return records;
 
         // send any new fetches (won't resend pending fetches)
-        // 创建并缓存FetchRequest请求
+        // 发送拉取请求
         fetcher.sendFetches();
 
         long now = time.milliseconds();
@@ -1687,10 +1687,10 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         //此时还没相关topic偏移量
         if (!subscriptions.hasAllFetchPositions(partitions)) {
 
-            //刷新所有分配的分区
+            // 如果有必要，更新提交偏移量
             coordinator.refreshCommittedOffsetsIfNeeded();
 
-            //更新偏移量
+            // 更新分区的拉取偏移量
             fetcher.updateFetchPositions(partitions);
         }
     }

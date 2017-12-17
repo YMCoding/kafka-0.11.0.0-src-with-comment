@@ -304,9 +304,7 @@ public class Selector implements Selectable, AutoCloseable {
      *         already an in-progress send
      */
     @Override
-    //每次调用都会读取新的请求，发送成功的请求，以及断开连接的请求
-    //放入其completedReceives,completedSends,disconnected
-    // 一次poll只能发送一个send请求
+    // 轮训的时候根据选在键读写，分别调用kafka通道的read和write
     public void poll(long timeout) throws IOException {
         if (timeout < 0)
             throw new IllegalArgumentException("timeout should be >= 0");
@@ -318,7 +316,7 @@ public class Selector implements Selectable, AutoCloseable {
 
         /* check ready keys */
         long startSelect = time.nanoseconds();
-        // 等到io事件发生
+        // 进行一次轮训，或者阻塞
         int readyKeys = select(timeout);
         long endSelect = time.nanoseconds();
 
@@ -389,7 +387,7 @@ public class Selector implements Selectable, AutoCloseable {
                     channel.prepare();
 
                 /* if channel is ready read from any connections that have readable data */
-                // 对OP_READ事件处理
+                // 对OP_READ事件处理，没有读完整，则一直读
                 if (channel.ready() && key.isReadable() && !hasStagedReceive(channel)) {
                     NetworkReceive networkReceive;
                     while ((networkReceive = channel.read()) != null)
@@ -398,7 +396,7 @@ public class Selector implements Selectable, AutoCloseable {
                 }
 
                 /* if channel is ready write to any sockets that have space in their buffer and for which we have data */
-                // 对OP_WRITE事件处理
+                // 对OP_WRITE事件处理。没有写完整，写事件不会取消继续写
                 if (channel.ready() && key.isWritable()) {
                     Send send = channel.write();
                     if (send != null) {
