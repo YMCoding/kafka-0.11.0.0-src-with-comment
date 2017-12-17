@@ -1121,6 +1121,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
 
         // 判断所有的分区都存在有效的拉取偏移量
         if (!subscriptions.hasAllFetchPositions())
+            // 更新没有拉取偏移量的分区
             updateFetchPositions(this.subscriptions.missingFetchPositions());
 
         // 数据存在立即返回
@@ -1684,7 +1685,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
         // the user is manually assigning partitions and managing their own offsets).
 
         fetcher.resetOffsetsIfNeeded(partitions);
-        //此时还没相关topic偏移量
+        // 此时还没相关topic偏移量
         if (!subscriptions.hasAllFetchPositions(partitions)) {
 
             // 如果有必要，更新提交偏移量

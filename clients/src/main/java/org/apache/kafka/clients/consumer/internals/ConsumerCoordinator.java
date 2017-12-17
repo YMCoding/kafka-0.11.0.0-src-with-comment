@@ -305,7 +305,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 ensureCoordinatorReady();
                 now = time.milliseconds();
             }
-
+            // 是凑需要发送加入消费者组的请求
             if (needRejoin()) {
                 // due to a race condition between the initial metadata fetch and the initial rebalance,
                 // we need to ensure that the metadata is fresh before joining initially. This ensures
@@ -313,6 +313,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 if (subscriptions.hasPatternSubscription())
                     client.ensureFreshMetadata();
 
+                // 消费者加入消费者组
                 ensureActiveGroup();
                 now = time.milliseconds();
             }
@@ -338,7 +339,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     }
 
     /**
-     * Return the time to the next needed invocation of {@link #poll(long)}.
+     * Return the time to the next needed invocation of .
      * @param now current time in milliseconds
      * @return the maximum time in milliseconds the caller should wait before the next invocation of poll()
      */
@@ -480,6 +481,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
      * Refresh the committed offsets for provided partitions.
      */
     // 发送offsetFetchRequest请求从服务端拉取最近提交的offset集合，更新到Subcriptions中
+    // 更新分区状态中已提交的偏移量
     public void refreshCommittedOffsetsIfNeeded() {
         if (subscriptions.refreshCommitsNeeded()) {
             //ConsumerNetworkClient send方法

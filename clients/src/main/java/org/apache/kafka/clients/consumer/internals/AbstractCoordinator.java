@@ -298,6 +298,7 @@ public abstract class AbstractCoordinator implements Closeable {
         // when sending heartbeats and does not necessarily require us to rejoin the group.
         ensureCoordinatorReady();
         startHeartbeatThreadIfNeeded();
+        // 加入消费者组
         joinGroupIfNeeded();
     }
 
@@ -341,15 +342,18 @@ public abstract class AbstractCoordinator implements Closeable {
             // refresh which changes the matched subscription set) can occur while another rebalance is
             // still in progress.
             if (needsJoinPrepare) {
+                // 准备加入
                 onJoinPrepare(generation.generationId, generation.memberId);
                 needsJoinPrepare = false;
             }
 
+            // 调用sendJoinGroupRequest发送 加入消费者组的请求
             RequestFuture<ByteBuffer> future = initiateJoinGroup();
             client.poll(future);
             resetJoinGroupFuture();
 
             if (future.succeeded()) {
+                // 完成执行会滴哦啊
                 needsJoinPrepare = true;
                 onJoinComplete(generation.generationId, generation.memberId, generation.protocol, future.value());
             } else {

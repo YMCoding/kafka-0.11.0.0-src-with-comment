@@ -275,7 +275,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
      * @param partitions the partitions to update positions for
      * @throws NoOffsetForPartitionException If no offset is stored for a given partition and no reset policy is available
      */
-    // 实现了重置TopicPartitionState.position字段的功能
+    // 更新分区中的拉取偏移量
     public void updateFetchPositions(Set<TopicPartition> partitions) {
         final Set<TopicPartition> needsOffsetReset = new HashSet<>();
         // reset the fetch position to the committed position
@@ -283,6 +283,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
             if (!subscriptions.isAssigned(tp) || subscriptions.hasValidPosition(tp))
                 continue;
 
+            // 重置拉取偏移量到已经提交过的地方
             if (subscriptions.isOffsetResetNeeded(tp)) {
                 needsOffsetReset.add(tp);
             } else if (subscriptions.committed(tp) == null) {
@@ -290,7 +291,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                 subscriptions.needOffsetReset(tp);
                 needsOffsetReset.add(tp);
             } else {
-                // 对应的committed字段不为空，则更新position字段为committed字段
+                // 分区中对应的拉取偏移量不为空，直接使用它最为拉取偏移量
                 long committed = subscriptions.committed(tp).offset();
                 log.debug("Resetting offset for partition {} to the committed offset {}", tp, committed);
                 subscriptions.seek(tp, committed);
@@ -419,6 +420,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
      * @param partitions  The partitions that need offsets reset
      * @throws org.apache.kafka.clients.consumer.NoOffsetForPartitionException If no offset reset strategy is defined
      */
+    // 根据重置策略重置分区的拉取偏移量
     private void resetOffsets(final Set<TopicPartition> partitions) {
         //存储EARLIEST和LATEST策略的partition
         final Map<TopicPartition, Long> offsetResets = new HashMap<>();
@@ -436,7 +438,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                 continue;
             }
             // we might lose the assignment while fetching the offset, so check it is still active
-            //我们可能会在获取偏移量时丢失作业，因此请检查它是否仍然有效
+            // 分区已经有了 已提交偏移量 ，用已提交偏移量作为分区状态的拉取偏移量
             if (subscriptions.isAssigned(partition)) {
                 log.debug("Resetting offset for partition {} to offset {}.", partition, offsetData.offset);
                 //从offset开始消费
