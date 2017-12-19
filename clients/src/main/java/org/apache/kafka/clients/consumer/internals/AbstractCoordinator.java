@@ -73,6 +73,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * before reading or writing the state of the group (e.g. generation, memberId) and holding the lock
  * when sending a request that affects the state of the group (e.g. JoinGroup, LeaveGroup).
  */
+// 定义了为客户端分配分区的逻辑
 public abstract class AbstractCoordinator implements Closeable {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractCoordinator.class);
@@ -97,8 +98,9 @@ public abstract class AbstractCoordinator implements Closeable {
     protected final long retryBackoffMs;
     // 定时任务，发送心跳请求和心跳响应
     private HeartbeatThread heartbeatThread = null;
+    // 是否需要重新加入消费者组
     private boolean rejoinNeeded = true;
-    // 标记是否需要执行发送JoinGroupRequest请求前的准备操作
+    // 是否需要加入消费者组
     private boolean needsJoinPrepare = true;
     private MemberState state = MemberState.UNJOINED;
     private RequestFuture<ByteBuffer> joinFuture = null;
@@ -333,6 +335,7 @@ public abstract class AbstractCoordinator implements Closeable {
 
     // visible for testing. Joins the group without starting the heartbeat thread.
     void joinGroupIfNeeded() {
+        // needRejoin需要加入 rejoinIncomplete没有完成
         while (needRejoin() || rejoinIncomplete()) {
             ensureCoordinatorReady();
 
@@ -353,7 +356,7 @@ public abstract class AbstractCoordinator implements Closeable {
             resetJoinGroupFuture();
 
             if (future.succeeded()) {
-                // 完成执行会滴哦啊
+                // 完成执行回调
                 needsJoinPrepare = true;
                 onJoinComplete(generation.generationId, generation.memberId, generation.protocol, future.value());
             } else {
@@ -384,6 +387,7 @@ public abstract class AbstractCoordinator implements Closeable {
             disableHeartbeatThread();
 
             state = MemberState.REBALANCING;
+            // 发送加入组的请求
             joinFuture = sendJoinGroupRequest();
             joinFuture.addListener(new RequestFutureListener<ByteBuffer>() {
                 @Override
@@ -434,7 +438,7 @@ public abstract class AbstractCoordinator implements Closeable {
 
         log.debug("Sending JoinGroup ({}) to coordinator {}", requestBuilder, this.coordinator);
         return client.send(coordinator, requestBuilder)
-                .compose(new JoinGroupResponseHandler());
+                .compose(new JoinGroupResponseHandler());// JoinGroup的异步请求，执行到compose方法，就表示已经有返回值了
     }
 
     private class JoinGroupResponseHandler extends CoordinatorResponseHandler<JoinGroupResponse, ByteBuffer> {
@@ -455,6 +459,7 @@ public abstract class AbstractCoordinator implements Closeable {
                         AbstractCoordinator.this.generation = new Generation(joinResponse.generationId(),
                                 joinResponse.memberId(), joinResponse.groupProtocol());
                         // 判断是不是leader
+                        // 包含发送同步组 将JoinGroup异步请求链接到SyncGroup异步请求
                         if (joinResponse.isLeader()) {
                             onJoinLeader(joinResponse).chain(future);
                         } else {

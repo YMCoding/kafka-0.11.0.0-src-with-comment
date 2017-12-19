@@ -1074,10 +1074,12 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
             // poll for new data until the timeout expires
             long start = time.milliseconds();
             long remaining = timeout;
+            // 只要轮训到数据就返回
             do {
-                //关键方法
+                // 一次轮训中，循环调用pollonce
+                // 在timeount内，一直调用pollOnce，直到有数据返回
                 Map<TopicPartition, List<ConsumerRecord<K, V>>> records = pollOnce(remaining);
-                // 检测是否有消息返回
+                // 在timeout内，轮训到数据就立马返回
                 if (!records.isEmpty()) {
                     // before returning the fetched records, we can send off the next round of fetches
                     // and avoid block waiting for their responses to enable pipelining while the user
@@ -1085,8 +1087,6 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
                     //
                     // NOTE: since the consumed position has already been updated, we must not allow
                     // wakeups or any other errors to be triggered prior to returning the fetched records.
-                    // 创建并缓存FetchRequest
-                    // 创建并缓存FetchRequest
                     // 创建并缓存FetchRequest
                     if (fetcher.sendFetches() > 0 || client.hasPendingRequests())
                         client.pollNoWakeup();
@@ -1099,6 +1099,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
                 }
 
                 long elapsed = time.milliseconds() - start;
+                // 一次轮训结束后，离timeount还剩多少时间
                 remaining = timeout - elapsed;
             } while (remaining > 0);
 
@@ -1116,7 +1117,8 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      */
     private Map<TopicPartition, List<ConsumerRecord<K, V>>> pollOnce(long timeout) {
         client.maybeTriggerWakeup();
-        //进行rebalance操作，调用maybeAutoCommitOffsetsAsync
+        // 轮训
+        // 内部有可能进行rebalance操作，调用maybeAutoCommitOffsetsAsync
         coordinator.poll(time.milliseconds(), timeout);
 
         // 判断所有的分区都存在有效的拉取偏移量

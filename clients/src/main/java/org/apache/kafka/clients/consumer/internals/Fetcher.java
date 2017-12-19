@@ -587,6 +587,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
         } else {
             // note that the consumed position should always be available as long as the partition is still assigned
             long position = subscriptions.position(partitionRecords.partition);
+            // 查看消费者订阅状态 看这个分区是否可以拉取
             if (!subscriptions.isFetchable(partitionRecords.partition)) {
                 // this can happen when a partition is paused before fetched records are returned to the consumer's poll call
                 log.debug("Not returning fetched records for assigned partition {} since it is no longer fetchable",
@@ -700,6 +701,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
                     public void onSuccess(ClientResponse response, RequestFuture<Map<TopicPartition, OffsetData>> future) {
                         ListOffsetResponse lor = (ListOffsetResponse) response.responseBody();
                         log.trace("Received ListOffsetResponse {} from broker {}", lor, node);
+                        // 在收到响应结果时调用监听器的回调方法，将结果设置到异步请求中
                         handleListOffsetResponse(timestampsToSearch, lor, future);
                     }
                 });
@@ -776,6 +778,7 @@ public class Fetcher<K, V> implements SubscriptionState.Listener, Closeable {
             future.complete(timestampOffsetMap);
     }
 
+    // 创建拉取请求时候，如果分区还没处理完成，则不会拉取这个分区
     private List<TopicPartition> fetchablePartitions() {
         Set<TopicPartition> exclude = new HashSet<>();
         List<TopicPartition> fetchable = subscriptions.fetchablePartitions();

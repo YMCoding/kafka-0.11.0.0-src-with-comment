@@ -438,6 +438,7 @@ public class NetworkClient implements KafkaClient {
      */
     @Override
     // 调用Selector.poll 进行网络IO
+    // 执行完成后 触发回调逻辑
     public List<ClientResponse> poll(long timeout, long now) {
         //处理终止的请求
         if (!abortedSends.isEmpty()) {
